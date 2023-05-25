@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;1,100;1,300;1,400&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body,
+        html {
+            margin: 0;
+            font-family: 'Roboto', sans-serif;
+            font-weight: 100;
+        }
+
+        .entry {
+            display: flex;
+            font-size: 0.7em;
+            font-weight: 500;
+            margin: 2px 0;
+        }
+
+        .entry .title {
+            max-width: 500px;
+            min-width: 500px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            align-self: center;
+            text-align: right;
+            padding-right: 50px;
+        }
+
+        .entry .container {
+            flex: 1;
+        }
+        .entry .content {
+            color: black;
+            text-shadow: 1px 1px white;
+            padding: 3px;
+            background: linear-gradient(to right, #66BBEE, #77CCFF);
+            border-radius: 3px;
+            min-width: 5px;
+        }
+
+        .entry:hover {
+            background-color: #EEE;
+        }
+
+        main {
+            box-sizing: border-box;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            gap: 0px;
+        }
+
+        .graph {
+            flex: 1;
+            padding: 20px;
+            overflow-y: scroll;
+            padding-right: 50px;
+        }
+
+        aside {
+            box-shadow: 0 0 10px 0 silver;
+            box-sizing: border-box;
+            width: 500px;
+            right: 0px;
+            top: 0px;
+            padding: 20px;
+            overflow-y: scroll;
+            font-size: 0.9em;
+            line-height: 1.1rem;
+        }
+
+        aside>div {
+            padding: 5px;
+        }
+
+        aside>div.title {
+            font-weight: bold;
+        }
+
+        aside>div:not(.title) {
+            margin-left: 10px;
+            white-space: pre-line;
+        }
+    </style>
+</head>
+
+<body>
+
+    <main>
+
+        <div class="graph">
+
+        </div>
+        <aside>
+
+        </aside>
+
+    </main>
+    <script>
+
+        function parseValue(row, name, index) {
+            if (name === "Delta" || name === "Duration") return Number(row[index]);
+            return row[index]?.trim();
+        }
+
+        (async function () {
+
+            const aside = document.querySelector("aside");
+            const graph = document.querySelector(".graph");
+            const filename = prompt("Filename");
+            const resp = await fetch(filename);
+            if (!resp.ok) {
+                alert(`${resp.status} ${resp.statusText}`);
+                throw new Error(resp.status);
+            }
+            const text = await resp.text();
+            const parsed = CSVToArray(text.trim(), ",");
+            const columns = parsed[0];
+            const dataPoints = parsed.slice(1)
+                .map(row => columns.map((name, index) => [name, parseValue(row, name, index)]))
+                .map(pairs => Object.fromEntries(pairs))
+                .sort((a, b) => a.Delta - b.Delta);
+            const maxValue = Math.max(...dataPoints.map(x => x.Delta + x.Duration));
+
+            dataPoints.forEach(x => {
+
+                const div = document.createElement("DIV");
+                div.innerHTML = "<div class='title'></div><div class='container'><div class='content'></div></div>";
+                div.className = "entry";
+                div.querySelector(".title").textContent = renderTitle(x);
+                div.querySelector(".content").style.marginLeft = `${x.Delta * 100 / maxValue}%`;
+                div.querySelector(".content").style.width = `${Math.max(1, x.Duration * 100 / maxValue)}%`;
+                div.querySelector(".content").textContent = x.Duration || "-";
+                div.addEventListener("mouseover", e => {
+
+                    aside.innerHTML = renderDetails(x);
+
+                });
+                graph.appendChild(div);
+
+            });
+
+        }());
+
+        function renderTitle(item) {
+
+            const title = item.Name || item.Message || item.ResultDescription;
+            //if(item.OperationName) return `${item.OperationName}: ${title}`;
+            return title;
+
+        }
+
+        function renderDetails(item) {
+
+            return Object
+                .entries(item)
+                .map(([key, value]) => `<div class="title">${key}</div><div>${value}</div>`)
+                .join("");
+
+        }
+
+        function CSVToArray(strData, strDelimiter) {
+            // Check to see if the delimiter is defined. If not,
+            // then default to comma.
+            strDelimiter = (strDelimiter || ",");
+
+            // Create a regular expression to parse the CSV values.
+            var objPattern = new RegExp(
+                (
+                    // Delimiters.
+                    "(\\" + strDelimiter + "|\\r?\\n|\\r|^)" +
+
+                    // Quoted fields.
+                    "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+
+                    // Standard fields.
+                    "([^\"\\" + strDelimiter + "\\r\\n]*))"
+                ),
+                "gi"
+            );
+
+
+            // Create an array to hold our data. Give the array
+            // a default empty first row.
+            var arrData = [[]];
+
+            // Create an array to hold our individual pattern
+            // matching groups.
+            var arrMatches = null;
+
+
+            // Keep looping over the regular expression matches
+            // until we can no longer find a match.
+            while (arrMatches = objPattern.exec(strData)) {
+
+                // Get the delimiter that was found.
+                var strMatchedDelimiter = arrMatches[1];
+
+                // Check to see if the given delimiter has a length
+                // (is not the start of string) and if it matches
+                // field delimiter. If id does not, then we know
+                // that this delimiter is a row delimiter.
+                if (
+                    strMatchedDelimiter.length &&
+                    (strMatchedDelimiter != strDelimiter)
+                ) {
+
+                    // Since we have reached a new row of data,
+                    // add an empty row to our data array.
+                    arrData.push([]);
+
+                }
+
+
+                // Now that we have our delimiter out of the way,
+                // let's check to see which kind of value we
+                // captured (quoted or unquoted).
+                if (arrMatches[2]) {
+
+                    // We found a quoted value. When we capture
+                    // this value, unescape any double quotes.
+                    var strMatchedValue = arrMatches[2].replace(
+                        new RegExp("\"\"", "g"),
+                        "\""
+                    );
+
+                } else {
+
+                    // We found a non-quoted value.
+                    var strMatchedValue = arrMatches[3];
+
+                }
+
+
+                // Now that we have our value string, let's add
+                // it to the data array.
+                arrData[arrData.length - 1].push(strMatchedValue);
+            }
+
+            // Return the parsed data.
+            return (arrData);
+        }
+
+    </script>
+</body>
+
+</html>
